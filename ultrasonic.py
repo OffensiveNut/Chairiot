@@ -1,7 +1,15 @@
 import RPi.GPIO as GPIO
 import time
-import threading
- 
+from paho.mqtt import client as mqtt_client
+import random
+
+
+broker = 'mqtt-dashboard.com'
+port = 1883
+topic1 = "SIC-Hyperion-US1"
+topic2 = "SIC-Hyperion-US2"
+# Generate a Client ID with the publish prefix.
+client_id = f'publish-{random.randint(0, 1000)}' 
 #GPIO Mode (BOARD / BCM)
 GPIO.setmode(GPIO.BCM)
  
@@ -18,6 +26,36 @@ GPIO.setup(GPIO_ECHO1, GPIO.IN)
 GPIO.setup(GPIO_TRIGGER2, GPIO.OUT)
 GPIO.setup(GPIO_ECHO2, GPIO.IN)
  
+def connect_mqtt():
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            print("Connected to MQTT Broker!")
+        else:
+            print("Failed to connect, return code %d\n", rc)
+
+    client = mqtt_client.Client(client_id)
+    # client.username_pw_set(username, password)
+    client.on_connect = on_connect
+    client.connect(broker, port)
+    return client
+
+def publish(client):
+    while True:
+        'status = result[0]'
+        dist1 = round(distance1(),1)
+        dist2 = round(distance2(),1)
+        result = client.publish(topic1, dist1)
+        result2 = client.publish(topic2, dist2)
+
+        print ("sensor 1 = %.1f cm" % dist1,"\nsensor 2 = %.1f cm" % dist2)
+        time.sleep(1)
+        '''if status == 0:
+            print(f"Send `{dist1} ` to topic `{topic1}`")
+            print(f"Send `{dist2} ` to topic `{topic2}`")
+            
+        else:
+            print(f"Failed to send message to topic {topic1}")'''
+
 def distance1():
     # set Trigger to HIGH
     GPIO.output(GPIO_TRIGGER1, True)
@@ -71,16 +109,24 @@ def distance2():
     distance = (TimeElapsed * 34300) / 2
  
     return distance
- 
+
+def run():
+    client = connect_mqtt()
+    client.loop_start()
+    publish(client)
+    client.loop_stop()
+
 if __name__ == '__main__':
     print('sukses')
     try:
+        run()
+        '''
         print('masuk while loop')
         while True:
             dist1 = distance1()
             dist2 = distance2()
-            print ("Jarak sensor 1 = %.1f cm" % dist1,"sensor 2 = %.1f cm" % dist2)
-            time.sleep(1)
+            print ("sensor 1 = %.1f cm" % dist1,"\nsensor 2 = %.1f cm" % dist2)
+            time.sleep(1)'''
  
         # Reset by pressing CTRL + C
     except KeyboardInterrupt:
