@@ -4,7 +4,7 @@ from paho.mqtt import client as mqtt_client
 import random
 
 
-broker = 'mqtt-dashboard.com'
+broker = 'mqtt-dashboard.com' #tes commit
 port = 1883
 topic1 = "SIC-Hyperion-US1"
 topic2 = "SIC-Hyperion-US2"
