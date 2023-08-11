@@ -2,7 +2,7 @@ import RPi.GPIO as GPIO
 import time
 from paho.mqtt import client as mqtt_client
 import random
-
+import threading
 
 broker = 'mqtt-dashboard.com' #tes commit
 port = 1883
@@ -40,14 +40,17 @@ def connect_mqtt():
     return client
 
 def publish(client):
+    global distance1_cm
+    global distance2_cm
+    
     while True:
         'status = result[0]'
-        dist1 = round(distance1(),1)
-        dist2 = round(distance2(),1)
-        result = client.publish(topic1, dist1)
-        result2 = client.publish(topic2, dist2)
+        #dist1 = round(distance1(),1)
+        #dist2 = round(distance2(),1)
+        result = client.publish(topic1, distance1_cm)
+        result2 = client.publish(topic2, distance2_cm)
 
-        print ("sensor 1 = %.1f cm" % dist1,"\nsensor 2 = %.1f cm" % dist2)
+        print ("sensor 1 = %.1f cm" % distance1_cm,"\nsensor 2 = %.1f cm" % distance2_cm)
         time.sleep(1)
         '''if status == 0:
             print(f"Send `{dist1} ` to topic `{topic1}`")
@@ -56,59 +59,72 @@ def publish(client):
         else:
             print(f"Failed to send message to topic {topic1}")'''
 
-def distance1():
-    # set Trigger to HIGH
-    GPIO.output(GPIO_TRIGGER1, True)
- 
-    # set Trigger after 0.01ms to LOW
-    time.sleep(0.00001)
-    GPIO.output(GPIO_TRIGGER1, False)
- 
-    StartTime = time.time()
-    StopTime = time.time()
- 
-    # save StartTime
-    while GPIO.input(GPIO_ECHO1) == 0:
-        StartTime = time.time()
- 
-    # save time of arrival
-    while GPIO.input(GPIO_ECHO1) == 1:
-        StopTime = time.time()
- 
-    # time difference between start and arrival
-    TimeElapsed = StopTime - StartTime
-    # multiply with the sonic speed (34300 cm/s)
-    # and divide by 2, because there and back
-    distance = (TimeElapsed * 34300) / 2
- 
-    return distance
+def start_distance1():
+    t1 = threading.Thread(target=distance1)
+    t1.start()
 
-def distance2():
-    # set Trigger to HIGH
-    GPIO.output(GPIO_TRIGGER2, True)
- 
-    # set Trigger after 0.01ms to LOW
-    time.sleep(0.00001)
-    GPIO.output(GPIO_TRIGGER2, False)
- 
-    StartTime = time.time()
-    StopTime = time.time()
- 
-    # save StartTime
-    while GPIO.input(GPIO_ECHO2) == 0:
+def distance1():
+    global distance1_cm
+    while True:
+        # set Trigger to HIGH
+        GPIO.output(GPIO_TRIGGER1, True)
+    
+        # set Trigger after 0.01ms to LOW
+        time.sleep(0.00001)
+        GPIO.output(GPIO_TRIGGER1, False)
+    
         StartTime = time.time()
- 
-    # save time of arrival
-    while GPIO.input(GPIO_ECHO2) == 1:
         StopTime = time.time()
- 
-    # time difference between start and arrival
-    TimeElapsed = StopTime - StartTime
-    # multiply with the sonic speed (34300 cm/s)
-    # and divide by 2, because there and back
-    distance = (TimeElapsed * 34300) / 2
- 
-    return distance
+    
+        # save StartTime
+        while GPIO.input(GPIO_ECHO1) == 0:
+            StartTime = time.time()
+    
+        # save time of arrival
+        while GPIO.input(GPIO_ECHO1) == 1:
+            StopTime = time.time()
+    
+        # time difference between start and arrival
+        TimeElapsed = StopTime - StartTime
+        # multiply with the sonic speed (34300 cm/s)
+        # and divide by 2, because there and back
+        distance1_cm = round((TimeElapsed * 34300) / 2,2)
+    
+        #return distance
+
+def start_distance2():
+    t2 = threading.Thread(target=distance2)
+    t2.start()
+    
+    
+def distance2():
+    global distance2_cm
+    while True:
+        # set Trigger to HIGH
+        GPIO.output(GPIO_TRIGGER2, True)
+    
+        # set Trigger after 0.01ms to LOW
+        time.sleep(0.00001)
+        GPIO.output(GPIO_TRIGGER2, False)
+    
+        StartTime = time.time()
+        StopTime = time.time()
+    
+        # save StartTime
+        while GPIO.input(GPIO_ECHO2) == 0:
+            StartTime = time.time()
+    
+        # save time of arrival
+        while GPIO.input(GPIO_ECHO2) == 1:
+            StopTime = time.time()
+    
+        # time difference between start and arrival
+        TimeElapsed = StopTime - StartTime
+        # multiply with the sonic speed (34300 cm/s)
+        # and divide by 2, because there and back
+        distance2_cm = (TimeElapsed * 34300) / 2
+    
+        #return distance
 
 def run():
     client = connect_mqtt()
@@ -117,9 +133,14 @@ def run():
     client.loop_stop()
 
 if __name__ == '__main__':
+    global distance1_cm
+    global distance2_cm
     print('sukses')
+    start_distance1()
+    start_distance2()
+    
     try:
-        run()
+        #run()
         '''
         print('masuk while loop')
         while True:
@@ -127,7 +148,8 @@ if __name__ == '__main__':
             dist2 = distance2()
             print ("sensor 1 = %.1f cm" % dist1,"\nsensor 2 = %.1f cm" % dist2)
             time.sleep(1)'''
- 
+
+        print("cek hello")
         # Reset by pressing CTRL + C
     except KeyboardInterrupt:
         print("\n Dihentikan Oleh Pengguna")
