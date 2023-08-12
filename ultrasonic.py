@@ -2,6 +2,7 @@ import RPi.GPIO as GPIO
 import time
 from paho.mqtt import client as mqtt_client
 import random
+import threading
 
 
 broker = 'mqtt-dashboard.com'
@@ -16,15 +17,18 @@ GPIO.setmode(GPIO.BCM)
 #set GPIO Pins
 GPIO_TRIGGER1 = 18
 GPIO_ECHO1 = 15
-GPIO_TRIGGER2 = 24
+GPIO_TRIGGER2 = 22
 GPIO_ECHO2 = 23
-
+LEDR = 25
+LEDG = 8
  
 #set GPIO direction (IN / OUT)
 GPIO.setup(GPIO_TRIGGER1, GPIO.OUT)
 GPIO.setup(GPIO_ECHO1, GPIO.IN)
 GPIO.setup(GPIO_TRIGGER2, GPIO.OUT)
 GPIO.setup(GPIO_ECHO2, GPIO.IN)
+GPIO.setup(LEDG, GPIO.OUT)
+GPIO.setup(LEDR, GPIO.OUT)
  
 def connect_mqtt():
     def on_connect(client, userdata, flags, rc):
@@ -34,7 +38,6 @@ def connect_mqtt():
             print("Failed to connect, return code %d\n", rc)
 
     client = mqtt_client.Client(client_id)
-    # client.username_pw_set(username, password)
     client.on_connect = on_connect
     client.connect(broker, port)
     return client
@@ -42,19 +45,15 @@ def connect_mqtt():
 def publish(client):
     while True:
         'status = result[0]'
+        GPIO.output(LEDG, GPIO.HIGH)
         dist1 = round(distance1(),1)
         dist2 = round(distance2(),1)
         result = client.publish(topic1, dist1)
         result2 = client.publish(topic2, dist2)
 
         print ("sensor 1 = %.1f cm" % dist1,"\nsensor 2 = %.1f cm" % dist2)
-        time.sleep(1)
-        '''if status == 0:
-            print(f"Send `{dist1} ` to topic `{topic1}`")
-            print(f"Send `{dist2} ` to topic `{topic2}`")
-            
-        else:
-            print(f"Failed to send message to topic {topic1}")'''
+        GPIO.output(LEDG, GPIO.LOW)
+        time.sleep(0.5)
 
 def distance1():
     # set Trigger to HIGH
@@ -118,15 +117,9 @@ def run():
 
 if __name__ == '__main__':
     print('sukses')
+    GPIO.output(LEDR, GPIO.HIGH)
     try:
         run()
-        '''
-        print('masuk while loop')
-        while True:
-            dist1 = distance1()
-            dist2 = distance2()
-            print ("sensor 1 = %.1f cm" % dist1,"\nsensor 2 = %.1f cm" % dist2)
-            time.sleep(1)'''
  
         # Reset by pressing CTRL + C
     except KeyboardInterrupt:
