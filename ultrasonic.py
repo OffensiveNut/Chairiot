@@ -1,19 +1,18 @@
-import RPi.GPIO as GPIO
 import time
-from paho.mqtt import client as mqtt_client
+import requests
+import math
 import random
+import RPi.GPIO as GPIO
 import threading
 
+TOKEN = "BBFF-9DdXBU8MAziwsslZNTcYXTSTuauWCo"
+DEVICE_LABEL = "chairiot"
+VARIABLE_LABEL_1 = "ultrasonicatas"
+VARIABLE_LABEL_2 = "ultrasonicbawah"
+VARIABLE_LABEL_3 = "punggung"
 
-broker = 'mqtt-dashboard.com'
-port = 1883
-topic1 = "SIC-Hyperion-US1"
-topic2 = "SIC-Hyperion-US2"
-# Generate a Client ID with the publish prefix.
-client_id = f'publish-{random.randint(0, 1000)}' 
-#GPIO Mode (BOARD / BCM)
 GPIO.setmode(GPIO.BCM)
- 
+
 #set GPIO Pins
 GPIO_TRIGGER1 = 18
 GPIO_ECHO1 = 15
@@ -29,31 +28,6 @@ GPIO.setup(GPIO_TRIGGER2, GPIO.OUT)
 GPIO.setup(GPIO_ECHO2, GPIO.IN)
 GPIO.setup(LEDG, GPIO.OUT)
 GPIO.setup(LEDR, GPIO.OUT)
- 
-def connect_mqtt():
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
-            print("Connected to MQTT Broker!")
-        else:
-            print("Failed to connect, return code %d\n", rc)
-
-    client = mqtt_client.Client(client_id)
-    client.on_connect = on_connect
-    client.connect(broker, port)
-    return client
-
-def publish(client):
-    while True:
-        'status = result[0]'
-        GPIO.output(LEDG, GPIO.HIGH)
-        dist1 = round(distance1(),1)
-        dist2 = round(distance2(),1)
-        result = client.publish(topic1, dist1)
-        result2 = client.publish(topic2, dist2)
-
-        print ("sensor 1 = %.1f cm" % dist1,"\nsensor 2 = %.1f cm" % dist2)
-        GPIO.output(LEDG, GPIO.LOW)
-        time.sleep(0.5)
 
 def distance1():
     # set Trigger to HIGH
@@ -109,19 +83,66 @@ def distance2():
  
     return distance
 
-def run():
-    client = connect_mqtt()
-    client.loop_start()
-    publish(client)
-    client.loop_stop()
+def build_payload(variable_1, variable_2, variable_3):
+    value_1 = round(distance1(),1) #mengambil data dari sensor
+    value_2 = round(distance2(),1)
+    if abs(value_1 - value_2 > 5):
+        value_3 = 0
+        payload = {variable_1: value_1,
+                variable_2: value_2,
+                variable_3: value_3}  #dictionary / JSON
+        return payload
+    else :
+        value_3 = 1
+        payload = {variable_1: value_1,
+                variable_2: value_2,
+                variable_3: value_3} 
+        return payload
+
+    
+
+
+def post_request(payload):
+    # Creates the headers for the HTTP requests
+    url = "http://industrial.api.ubidots.com"
+    url = "{}/api/v1.6/devices/{}".format(url, DEVICE_LABEL)
+    headers = {"X-Auth-Token": TOKEN, "Content-Type": "application/json"}
+
+    # Makes the HTTP requests
+    status = 400
+    attempts = 0
+    while status >= 400 and attempts <= 5:
+        GPIO.output(LEDG, GPIO.HIGH)
+        req = requests.post(url=url, headers=headers, json=payload)
+        print(req.json())
+        status = req.status_code
+        attempts += 1
+        GPIO.output(LEDG, GPIO.LOW)
+        time.sleep(1)
+
+    # Processes results
+    print(req.status_code, req.json())
+    if status >= 400:
+        print("[ERROR] Could not send data after 5 attempts, please check \
+            your token credentials and internet connection")
+        return False
+
+    print("[INFO] request made properly, your device is updated")
+    return True
+
+
+def main():
+    payload = build_payload(
+        VARIABLE_LABEL_1, VARIABLE_LABEL_2, VARIABLE_LABEL_3)
+
+    print("[INFO] Attemping to send data")
+    print("[INFO] send payload to ubidots => " + str(payload))
+    post_request(payload)   #kirim data ke ubidots
+    print("[INFO] finished")
+
 
 if __name__ == '__main__':
-    print('sukses')
-    GPIO.output(LEDR, GPIO.HIGH)
-    try:
-        run()
- 
-        # Reset by pressing CTRL + C
-    except KeyboardInterrupt:
-        print("\n Dihentikan Oleh Pengguna")
-        GPIO.cleanup()
+    while (True):
+        main()
+        time.sleep(1)
+        print("\n")
