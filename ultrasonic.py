@@ -86,14 +86,14 @@ def distance2():
 def build_payload(variable_1, variable_2, variable_3):
     value_1 = round(distance1(),1) #mengambil data dari sensor
     value_2 = round(distance2(),1)
-    if abs(value_1 - value_2 > 5):
-        value_3 = 0
+    if abs(value_1 - value_2 > 5): # if abs(value_1 - value_2) > 5:
+        value_3 = 0   #value_3 = "bungkuk"
         payload = {variable_1: value_1,
                 variable_2: value_2,
                 variable_3: value_3}  #dictionary / JSON
         return payload
     else :
-        value_3 = 1
+        value_3 = 1 #value_3 = "tegap"
         payload = {variable_1: value_1,
                 variable_2: value_2,
                 variable_3: value_3} 
