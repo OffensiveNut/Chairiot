@@ -4,6 +4,7 @@ import math
 import random
 import RPi.GPIO as GPIO
 import threading
+from datetime import datetime
 
 TOKEN = "BBFF-9DdXBU8MAziwsslZNTcYXTSTuauWCo"
 DEVICE_LABEL = "chairiot"
@@ -131,14 +132,30 @@ def post_request(payload):
     return True
 
 
+# def save_to_db(payload):
+#     try:
+#          #createdAt = datetime.now().strftime("%Y:%m:%d_%h:%m:%S")
+#          createdAt = int(time.now())
+     
+#          payload['createdAt'] = createdAt
+#          status = pymongo_clinet.insert_one(payload)
+#          if status:
+#               send_notif_telegram()
+#          else:
+          
+# except Excpetion as e:
+# print("FAILED SAVA TO DB with ERROR" , e)
+
+
 def main():
     payload = build_payload(
-        VARIABLE_LABEL_1, VARIABLE_LABEL_2, VARIABLE_LABEL_3)
+        VARIABLE_LABEL_1, VARIABLE_LABEL_2, VARIABLE_LABEL_3) # payload merupakan dict
 
     print("[INFO] Attemping to send data")
     print("[INFO] send payload to ubidots => " + str(payload))
     post_request(payload)   #kirim data ke ubidots
     print("[INFO] finished")
+    #save_to_db(payload)
 
 
 if __name__ == '__main__':
