@@ -3,7 +3,7 @@ import requests
 import math
 import random
 import RPi.GPIO as GPIO
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 #from pymongo.mongo_client import MongoClient
 
@@ -70,6 +70,31 @@ if con:
     print("Sukses konek ke DB")
 else:
     print("Gagal konek DB")
+    
+    
+def get_epoch_time_delta(delta_days):
+    current_datetime = datetime.now()
+    time_delta = current_datetime - timedelta(days=delta_days)
+    time_delta_epoch = int(time_delta.timestamp())
+    return time_delta_epoch
+    
+
+def get_last_7_days_data():
+    try:
+        now = int(time.time())
+        time_delta = get_epoch_time_delta(7) # 7 hari terkahir
+        param= {
+            'start_time' : now,
+            'end_time' : time_delta
+        }
+        
+        sql = 'SELECT * FROM DataSensor WHERE createdAt BETWEEN :start_time AND :end_time'
+        cursor = con.cursor().execute(sql,param)
+        result = cursor.fetchall()
+        return result
+    except Exception as e:
+        print("[ERROR] get 7 days data")
+        return False
 
 def insert_datasensor(payload):
     del payload["ultrasonicatas"]
