@@ -4,7 +4,6 @@ import math
 import random
 from datetime import datetime, timedelta
 import sqlite3
-from ubidots import ApiClient
 import threading
 import schedule
 from gpiozero import LED,Buzzer,DistanceSensor
@@ -17,12 +16,11 @@ TOKENTELE = '6341354896:AAEWv80n9mSi1Jzw9il8psnrjbqF41qXuXk'
 
 #Ubidots
 TOKEN = "BBFF-SPIdNe2oiBj1aHhXaA4App7zHsXczY"
-api = ApiClient(token="BBFF-MOVEvayAV5PhVSZmkJiIMXrcJSs5uT")
 DEVICE_LABEL = "chairiot"
+VARIABLE_LABEL_1 = "idtelegram"
+VARIABLE_LABEL_2 = "mode"
 VARIABLE_LABEL_3 = "punggung"
 VARIABLE_LABEL_4 = "duduk"
-new_variable = api.get_variable('64e414d593129e000eeb6569')
-last_value = new_variable.get_values(1)
 
 sensor1 = DistanceSensor(echo=19, trigger=26)
 sensor2 = DistanceSensor(echo=20, trigger=16)
@@ -52,24 +50,6 @@ def get_epoch_time_delta(delta_days):
     time_delta_epoch = int(time_delta.timestamp())
     return time_delta_epoch
     
-
-def get_last_7_days_data():
-    try:
-        now = int(time.time())
-        time_delta = get_epoch_time_delta(7) # 7 hari terkahir
-        param= {
-            'start_time' : now,
-            'end_time' : time_delta
-        }
-        
-        sql = 'SELECT * FROM DataSensor WHERE createdAt BETWEEN :start_time AND :end_time'
-        cursor = con.cursor().execute(sql,param)
-        result = cursor.fetchall()
-        return result
-    except Exception as e:
-        print("[ERROR] get 7 days data")
-        return False
-
 def insert_datasensor(payload):
     payload.update({'createdAt':int(time.time())})
     try:  
@@ -86,6 +66,30 @@ def get_epoch_time_delta(delta_days):
     time_delta_epoch = int(time_delta.timestamp())
     return time_delta_epoch
 
+def get_last_last_7_days_data():
+    try:
+        now = get_epoch_time_delta(7)
+        time_delta = get_epoch_time_delta(14) # 7 hari terkahir
+        param= {
+            'start_time' : time_delta,
+            'end_time' : now
+        }
+
+        sql = 'SELECT * FROM DataSensor WHERE createdAt BETWEEN :start_time AND :end_time'
+        cursor = con.cursor().execute(sql,param)
+        result = cursor.fetchall()
+
+        punggung = [a['punggung'] for a in result]
+        while 2 in punggung : punggung.remove(2)
+        avgPunggung =sum(punggung)/len(punggung)
+        
+        duduk = [a['duduk'] for a in result]
+        sumDuduk =sum(duduk)
+
+        return sumDuduk,avgPunggung
+    except Exception as e:
+        print("[ERROR] get 7 days data\n",e)
+        return False
 
 def get_last_7_days_data():
     try:
@@ -111,14 +115,21 @@ def get_last_7_days_data():
     except Exception as e:
         print("[ERROR] get 7 days data\n",e)
         return False
+def start_payloadgen():
+    t1=threading.Thread(target=payloadgen)
+    t1.start()
 
-def build_payload(variable_3, variable_4):
+def payloadgen():
+    global payload
+    while True:
+        payload = build_payload()
+        time.sleep(1)
+
+def build_payload(variable_3=VARIABLE_LABEL_3, variable_4=VARIABLE_LABEL_4):
     global wabung
     global waduk
-
     value_1 = round(sensor1.distance*100,1)
-    value_2 = round(sensor2.distance*100,1) #mengambil data dari sensor
-    print(value_1,'\n',value_2)
+    value_2 = round(sensor2.distance*100,1)
     if value_1 < 30 and value_2 < 30:   #untuk mendeteksi apakah pengguna duduk
         waduk +=1
         payload={variable_4:1}
@@ -141,23 +152,57 @@ def start_kondisi():
 
 def kondisi():
     global waduk, wabung
-    time.sleep(3)
     while True:
-        if waduk > 3600:
-            buzzer.on()
-            kirimPesan("Kamu telah duduk terlalu lama, berdirilah dan gerakan badanmu")
+        mode = get_request(VARIABLE_LABEL_2)
+        while mode >1:
+            if waduk > 1800:
+                buzzer.on()
+                kirimPesan("Kamu telah duduk terlalu lama, berdirilah dan gerakan badanmu🏃🏃🏃")
+                time.sleep(3)
+                buzzer.off()
+                waduk = 0
+            else:
+                pass
+            if wabung>5:
+                buzzer.on()
+            else:
+                buzzer.off()
+            mode = get_request(VARIABLE_LABEL_2)
             time.sleep(1)
+        else: pass
+        while mode ==1:
+            if waduk > 3600:
+                buzzer.on()
+                kirimPesan("Kamu telah duduk terlalu lama, berdirilah dan gerakan badanmu🏃🏃🏃")
+                time.sleep(0.5)
+                buzzer.off()
+                waduk = 0
+            else:
+                pass
+            if wabung>5:
+                buzzer.on()
+                time.sleep(3)
+                buzzer.off()
+            else:
+                buzzer.off()
+            mode = get_request(VARIABLE_LABEL_2)
+            time.sleep(1)
+        else: 
             buzzer.off()
-            waduk = 0
-        else:
-            pass
-        if wabung>5:
-            buzzer.on()
-        else:
-            buzzer.off()
-        time.sleep(1)
+            time.sleep(1)
     
-
+def get_request(variable):
+    url = 'https://industrial.api.ubidots.com/api/v1.6/devices/{}/{}/lv'.format(DEVICE_LABEL,variable)
+    headers = {"X-Auth-Token": TOKEN}
+    status = 400
+    attempts = 0
+    while status >= 400 and attempts <= 5:
+        req = requests.get(url=url, headers=headers)
+        print(req,req.json())
+        status = req.status_code
+        attempts += 1
+        time.sleep(1)
+    return int(req.json())
 
 def post_request(payload):
     # Creates the headers for the HTTP requests
@@ -188,43 +233,70 @@ def post_request(payload):
     return True
 
 def kirimPesan(text):
-   chat_id = str(int(last_value[0]['value']))
+   chat_id = str(get_request(VARIABLE_LABEL_1))
    url_req = "https://api.telegram.org/bot" + TOKENTELE + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + text 
    results = requests.get(url_req)
    print(results.json())
 
 def kirimReport():
     if get_last_7_days_data:
-        detik,avgPunggung = get_last_7_days_data()
-        print(detik,avgPunggung)
-        jam, detik = divmod(detik, 60 ** 2)
-        menit, detik = divmod(detik, 60)
-        waktuDuduk = '{:02} Jam, {:02} Menit, {:02} Detik.'.format(jam, menit, detik)
-        if avgPunggung>0.8:
-            kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"\nDan posisi duduk kamu SANGAT BAGUS!, Pertahankan!🔥🔥🔥")
-        elif avgPunggung>0.5:
-            kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"\nDan posisi duduk kamu sudah CUKUP BAGUS, Tingkatkan!👍🔥🔥🔥💪💪💪")
-        else :
-            kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"\nDan posisi duduk kamu CUKUP BURUK, Perbaikilah!💪")
+        if get_last_last_7_days_data:
+
+            detik,avgPunggung = get_last_7_days_data()
+            print(detik,avgPunggung)
+            jam, detik = divmod(detik, 60 ** 2)
+            menit, detik = divmod(detik, 60)
+            waktuDuduk = '{:02} Jam, {:02} Menit, {:02} Detik.'.format(jam, menit, detik)
+
+            detik2,avgPunggung2 = get_last_last_7_days_data()
+            if avgPunggung>avgPunggung2:
+                ratio = 100-int((avgPunggung2/avgPunggung)*100)
+                if avgPunggung>0.8:
+                    kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu SANGAT BAGUS!, Pertahankan!🔥🔥🔥\n\nSikap duduk kamu lebih baik {}% dari minggu lalu! MANTAP!🔥🔥🔥".format(ratio))
+                elif avgPunggung>0.5:
+                    kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu sudah CUKUP BAGUS, Tingkatkan!👍\n\nSikap duduk kamu lebih baik {}% dari minggu lalu! NICE!🔥🔥🔥".format(ratio))
+                else :
+                    kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu CUKUP BURUK, Perbaikilah!💪\n\nSikap duduk kamu lebih baik {}% dari minggu lalu!".format(ratio))
+            else:
+                ratio = 100-int((avgPunggung/avgPunggung2)*100)
+                if avgPunggung>0.8:
+                    kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu SANGAT BAGUS!, Pertahankan!🔥🔥🔥\n\nSikap duduk kamu lebih buruk {}% dari minggu lalu! Tingkatkan!".format(ratio))
+                elif avgPunggung>0.5:
+                    kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu sudah CUKUP BAGUS, Tingkatkan!👍 \n\nSikap duduk kamu lebih buruk {}% dari minggu lalu! Tingkatkan!".format(ratio))
+                else :
+                    kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu CUKUP BURUK, Perbaikilah!💪\n\nSikap duduk kamu lebih buruk {}% dari minggu lalu! Tingkatkan!".format(ratio))
+        else:
+            detik,avgPunggung = get_last_7_days_data()
+            print(detik,avgPunggung)
+            jam, detik = divmod(detik, 60 ** 2)
+            menit, detik = divmod(detik, 60)
+            waktuDuduk = '{:02} Jam, {:02} Menit, {:02} Detik.'.format(jam, menit, detik)
+            if avgPunggung>0.8:
+                kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu SANGAT BAGUS!, Pertahankan!🔥🔥🔥")
+            elif avgPunggung>0.5:
+                kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu sudah CUKUP BAGUS, Tingkatkan!👍🔥🔥🔥💪💪💪")
+            else :
+                kirimPesan("Minggu ini kamu telah duduk selama "+waktuDuduk+"⌛\nPosisi duduk kamu CUKUP BURUK, Perbaikilah!💪")
     else:
         pass
 
 def main():
-    payload = build_payload( VARIABLE_LABEL_3, VARIABLE_LABEL_4) # payload merupakan dict
+    global payload
+    insert_datasensor(payload)
     print("[INFO] Attemping to send data")
     print("[INFO] send payload to ubidots => \n" + str(payload),"\n")
     post_request(payload)   #kirim data ke ubidots
-    insert_datasensor(payload) #simpan data ke db
     schedule.run_pending()
     print("[INFO] finished")
 
 
-
 if __name__ == '__main__':
-    global wabung,waduk
-    wabung,waduk = 0,0
     try:
-        schedule.every().monday.at("14:01:00").do(kirimReport)
+        global wabung,waduk
+        global switch
+        wabung,waduk = 0,0
+        start_payloadgen()
+        schedule.every().monday.at("12:00:00").do(kirimReport)
         start_kondisi()
         LEDR.on()
         print('7 hari terakhir',get_last_7_days_data())
