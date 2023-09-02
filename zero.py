@@ -204,6 +204,10 @@ def get_request(variable):
         time.sleep(1)
     return int(req.json())
 
+def start_post_request(payload):
+    t1 = threading.Thread(target= post_request, args=(payload,))
+    t1.start()
+
 def post_request(payload):
     # Creates the headers for the HTTP requests
     url = "http://industrial.api.ubidots.com"
@@ -231,6 +235,10 @@ def post_request(payload):
 
     print("[INFO] request made properly, your device is updated")
     return True
+
+def start_kirimPesan(text):
+    t1 = threading.Thread(target= kirimPesan, args=(text,))
+    t1.start()
 
 def kirimPesan(text):
    chat_id = str(get_request(VARIABLE_LABEL_1))
@@ -285,7 +293,8 @@ def main():
     insert_datasensor(payload)
     print("[INFO] Attemping to send data")
     print("[INFO] send payload to ubidots => \n" + str(payload),"\n")
-    post_request(payload)   #kirim data ke ubidots
+    #post_request(payload)   #kirim data ke ubidots
+    start_post_request(payload)
     schedule.run_pending()
     print("[INFO] finished")
 
