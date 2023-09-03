@@ -22,3 +22,9 @@
 <p align="center">
   <img src='./img/chairiot_bb.png'width=400>
 </p>
+<p align="center">
+  <img src='./img/pcbAtas.jpeg'width=400>
+</p>
+<p align="center">
+  <img src='./img/pcbBawah.jpeg'width=400>
+</p>
