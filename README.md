@@ -28,3 +28,11 @@
 <p align="center">
   <img src='./img/pcbBawah.jpeg'width=400>
 </p>
+
+## Software & Library
+- Ubidots
+- SQLite
+- gpiozero
+- requests
+- schedule
+- python 3
